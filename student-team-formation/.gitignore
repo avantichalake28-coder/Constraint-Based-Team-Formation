@@ -1,0 +1,31 @@
+# Maven
+target/
+*.log
+*.tmp
+*.class
+*.jar
+*.war
+*.ear
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+*.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+*.class
+*.jar
+*.war
+*.ear
+
+# Spring Boot
+spring-boot-devtools.jar
+
+# Testcontainers
+testcontainers-*
