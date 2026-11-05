@@ -9,6 +9,7 @@ import com.teamformation.backend.entity.enums.UserRole;
 import com.teamformation.backend.exception.BusinessException;
 import com.teamformation.backend.repository.SkillRepository;
 import com.teamformation.backend.security.authentication.CurrentUserService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -46,7 +47,13 @@ public class SkillService {
             throw new BusinessException("Skill already exists", HttpStatus.CONFLICT);
         }
         Skill skill = new Skill(name, trim(request.category()), trim(request.description()));
-        skillRepository.save(skill);
+        try {
+            skillRepository.saveAndFlush(skill);
+        } catch (DataIntegrityViolationException ex) {
+            // The database collation is case-insensitive, so a concurrent
+            // insert of the same name in different case lands here.
+            throw new BusinessException("Skill already exists", HttpStatus.CONFLICT);
+        }
         return toResponse(skill);
     }
 

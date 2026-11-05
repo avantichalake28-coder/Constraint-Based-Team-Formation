@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Integration test that uses Testcontainers to start a real MySQL 8.0 instance.
  * A missing Docker daemon fails the build; tests are never skipped.
  *
- * <p>Starting the Spring context also runs Flyway V1-V4 and Hibernate schema
+ * <p>Starting the Spring context also runs Flyway V1-V5 and Hibernate schema
  * validation ({@code ddl-auto: validate}) against the migrated schema.</p>
  */
 @Import(TestcontainersConfiguration.class)
@@ -30,8 +30,8 @@ class BackendApplicationTests {
         assertThat(version).startsWith("8.0");
 
         Integer appliedMigrations = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1 AND version IN ('1','2','3','4')",
+                "SELECT COUNT(*) FROM flyway_schema_history WHERE success = 1 AND version IN ('1','2','3','4','5')",
                 Integer.class);
-        assertThat(appliedMigrations).isEqualTo(4);
+        assertThat(appliedMigrations).isEqualTo(5);
     }
 }

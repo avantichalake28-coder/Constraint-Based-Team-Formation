@@ -41,27 +41,28 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     Optional<Project> findByIdAndMentorId(Long id, Long mentorId);
 
     /**
-     * Use case: student-facing project list restricted to published projects
-     * the student is on the roster for.
+     * Use case: student-facing project list restricted to non-draft projects
+     * the student is on the roster for. Published projects remain visible after
+     * the preference lock moves their status to PREFERENCES_LOCKED.
      */
     @Query("""
             select p from Project p
-            where p.status = com.teamformation.backend.entity.enums.ProjectStatus.PUBLISHED
+            where p.status <> com.teamformation.backend.entity.enums.ProjectStatus.DRAFT
               and exists (select r from ProjectRoster r where r.project = p and r.student.id = :studentId)
             """)
-    Page<Project> findPublishedRosteredForStudent(@Param("studentId") Long studentId, Pageable pageable);
+    Page<Project> findVisibleRosteredForStudent(@Param("studentId") Long studentId, Pageable pageable);
 
     /**
-     * Use case: student-facing single project lookup. A non-published project
-     * or one without a roster entry is invisible to the student.
+     * Use case: student-facing single project lookup. A draft project or one
+     * without a roster entry is invisible to the student.
      */
     @Query("""
             select p from Project p
             where p.id = :id
-              and p.status = com.teamformation.backend.entity.enums.ProjectStatus.PUBLISHED
+              and p.status <> com.teamformation.backend.entity.enums.ProjectStatus.DRAFT
               and exists (select r from ProjectRoster r where r.project = p and r.student.id = :studentId)
             """)
-    Optional<Project> findPublishedRosteredByIdForStudent(
+    Optional<Project> findVisibleRosteredByIdForStudent(
             @Param("id") Long id, @Param("studentId") Long studentId);
 
     /**

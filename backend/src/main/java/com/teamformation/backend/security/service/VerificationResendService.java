@@ -22,7 +22,7 @@ import java.util.List;
 @Service
 public class VerificationResendService {
 
-    static final String GENERIC_MESSAGE =
+    public static final String GENERIC_MESSAGE =
             "If the address belongs to an unverified student account, a verification email will be sent";
     static final String THROTTLED_MESSAGE = "Too many verification email requests. Try again later";
 
