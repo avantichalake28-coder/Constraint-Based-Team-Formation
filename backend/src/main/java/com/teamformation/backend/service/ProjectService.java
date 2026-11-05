@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Objects;
 
 /**
  * Mentor-owned project CRUD, publishing, and a single-source-of-truth
@@ -42,17 +43,14 @@ public class ProjectService {
     /**
      * Single source of truth for whether preferences are locked.
      * A project is locked when {@code preferences_locked_at} is set or the
-     * deadline has passed. The result is based on the supplied instant so tests
-     * can reason deterministically without relying on wall time.
+     * deadline has passed. Every roster, preference and project-settings rule
+     * calls this method instead of duplicating the comparison.
      */
     public boolean arePreferencesLocked(Project project, Instant now) {
         if (project.getPreferencesLockedAt() != null) {
             return true;
         }
-        if (project.getPreferenceDeadline() != null && !project.getPreferenceDeadline().isAfter(now)) {
-            return true;
-        }
-        return false;
+        return project.getPreferenceDeadline() != null && !project.getPreferenceDeadline().isAfter(now);
     }
 
     public boolean arePreferencesLocked(Project project) {
@@ -83,12 +81,13 @@ public class ProjectService {
         Project project = projectRepository.findByIdAndMentorId(projectId, mentor.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
 
-        if (arePreferencesLocked(project)) {
+        if (arePreferencesLocked(project) && changesLockedSettings(project, request)) {
             throw new BusinessException(
-                    "Project settings cannot be changed after preferences are locked", HttpStatus.CONFLICT);
+                    "Team size and preference settings cannot be changed after preferences are locked",
+                    HttpStatus.CONFLICT);
         }
-        // Team size and roster/preference settings must not change after lock.
-        // The request is revalidated against the existing state.
+
+        Instant previousDeadline = project.getPreferenceDeadline();
         project.setTitle(request.title().trim());
         project.setProblemStatement(request.problemStatement().trim());
         project.setCourseCode(request.courseCode().trim());
@@ -97,27 +96,62 @@ public class ProjectService {
         project.setTeamSizeSlack(request.teamSizeSlack());
         project.setPreferenceDeadline(request.preferenceDeadline());
         project.setUpdatedAt(Instant.now());
-        validateProjectSettings(project, request.preferenceDeadline(), projectId);
+        validateProjectSettings(project, request.preferenceDeadline(), previousDeadline);
         return toResponse(project);
     }
 
+    /**
+     * Role-dispatched listing: a mentor sees their own projects (optionally
+     * filtered by status); a student sees only published projects they are on
+     * the roster for.
+     */
     @Transactional(readOnly = true)
-    public PageResponse<ProjectResponse> listMentorProjects(
+    public PageResponse<ProjectResponse> listProjects(
             Authentication authentication, ProjectStatus status, Pageable pageable) {
-        User mentor = currentUserService.requireCurrentUserWithRole(authentication, UserRole.MENTOR);
-        if (status == null) {
-            return PageResponse.from(projectRepository.findByMentorId(mentor.getId(), pageable).map(this::toResponse));
+        User user = currentUserService.requireCurrentUser(authentication);
+
+        if (user.getRole() == UserRole.MENTOR) {
+            if (status == null) {
+                return PageResponse.from(
+                        projectRepository.findByMentorId(user.getId(), pageable).map(this::toResponse));
+            }
+            return PageResponse.from(
+                    projectRepository.findByMentorIdAndStatus(user.getId(), status, pageable).map(this::toResponse));
         }
-        return PageResponse.from(
-                projectRepository.findByMentorIdAndStatus(mentor.getId(), status, pageable).map(this::toResponse));
+
+        if (user.getRole() == UserRole.STUDENT) {
+            // The optional mentor status filter has no meaning for a student.
+            return PageResponse.from(
+                    projectRepository.findVisibleRosteredForStudent(user.getId(), pageable).map(this::toResponse));
+        }
+
+        throw new BusinessException(
+                "You do not have permission to access this resource", HttpStatus.FORBIDDEN);
     }
 
+    /**
+     * Role-dispatched single-project read. A mentor can read only their own
+     * project; a student can read only a published project they are rostered
+     * for. Both cases return 404 for anything else.
+     */
     @Transactional(readOnly = true)
-    public ProjectResponse getMentorProject(Authentication authentication, Long projectId) {
-        User mentor = currentUserService.requireCurrentUserWithRole(authentication, UserRole.MENTOR);
-        Project project = projectRepository.findByIdAndMentorId(projectId, mentor.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
-        return toResponse(project);
+    public ProjectResponse getProject(Authentication authentication, Long projectId) {
+        User user = currentUserService.requireCurrentUser(authentication);
+
+        if (user.getRole() == UserRole.MENTOR) {
+            Project project = projectRepository.findByIdAndMentorId(projectId, user.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+            return toResponse(project);
+        }
+
+        if (user.getRole() == UserRole.STUDENT) {
+            Project project = projectRepository.findVisibleRosteredByIdForStudent(projectId, user.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+            return toResponse(project);
+        }
+
+        throw new BusinessException(
+                "You do not have permission to access this resource", HttpStatus.FORBIDDEN);
     }
 
     @Transactional
@@ -125,10 +159,13 @@ public class ProjectService {
         User mentor = currentUserService.requireCurrentUserWithRole(authentication, UserRole.MENTOR);
         Project project = projectRepository.findByIdAndMentorId(projectId, mentor.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
-        // Use the closest existing ProjectStatus values. PUBLISHED exists; if
-        // a different lifecycle is expected the mapping is logged as an assumption.
+
+        if (project.getStatus() == ProjectStatus.PUBLISHED) {
+            return toResponse(project);
+        }
         if (project.getStatus() != ProjectStatus.DRAFT) {
-            log.warn("ASSUMPTION: project {} publish called from status {} -- publishing only from DRAFT", projectId, project.getStatus());
+            throw new BusinessException(
+                    "Only a draft project can be published", HttpStatus.CONFLICT);
         }
         project.setStatus(ProjectStatus.PUBLISHED);
         project.setUpdatedAt(Instant.now());
@@ -138,25 +175,55 @@ public class ProjectService {
     @Transactional
     public ProjectLockResponse lockPreferences(Authentication authentication, Long projectId) {
         User mentor = currentUserService.requireCurrentUserWithRole(authentication, UserRole.MENTOR);
-        // Load with pessimistic lock as requested by the task.
+        // Load with a pessimistic write lock so two concurrent requests are
+        // serialised and observe one consistent locked state.
         Project project = projectRepository.findByIdForUpdate(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
-        if (project.getMentor().getId() != mentor.getId()) {
+        if (!Objects.equals(project.getMentor().getId(), mentor.getId())) {
             throw new ResourceNotFoundException("Project", "id", projectId);
         }
-        if (arePreferencesLocked(project)) {
-            // Idempotent: return 200 if already locked.
-            return new ProjectLockResponse(project.getId(), true, project.getPreferencesLockedAt(), project.getStatus());
+
+        if (project.getPreferencesLockedAt() != null) {
+            // Idempotent: a second lock request changes nothing and returns 200.
+            return new ProjectLockResponse(
+                    project.getId(), true, project.getPreferencesLockedAt(), project.getStatus());
         }
+
         Instant now = Instant.now();
         project.setPreferencesLockedAt(now);
-        // Set the existing locked status in the same transaction.
-        project.setStatus(ProjectStatus.PREFERENCES_LOCKED);
+        if (project.getStatus() == ProjectStatus.DRAFT || project.getStatus() == ProjectStatus.PUBLISHED) {
+            project.setStatus(ProjectStatus.PREFERENCES_LOCKED);
+        } else {
+            log.info("ASSUMPTION: locking project {} without changing later status {}", projectId, project.getStatus());
+        }
         project.setUpdatedAt(now);
-        return new ProjectLockResponse(project.getId(), true, project.getPreferencesLockedAt(), project.getStatus());
+        return new ProjectLockResponse(
+                project.getId(), true, project.getPreferencesLockedAt(), project.getStatus());
     }
 
-    private void validateProjectSettings(Project project, Instant deadline, Long projectId) {
+    private boolean changesLockedSettings(Project project, ProjectRequest request) {
+        return !Objects.equals(project.getMinTeamSize(), request.minTeamSize())
+                || !Objects.equals(project.getMaxTeamSize(), request.maxTeamSize())
+                || !Objects.equals(project.getTeamSizeSlack(), request.teamSizeSlack())
+                || !sameStoredInstant(project.getPreferenceDeadline(), request.preferenceDeadline());
+    }
+
+    /**
+     * The schema stores deadlines and lock timestamps as second-precision
+     * {@code TIMESTAMP} values. MySQL rounds a sub-second value on write, so a
+     * request carrying nanoseconds from {@link Instant#now()} can differ from
+     * the persisted value by one whole second without being a real change. A
+     * one-second tolerance treats both truncation and rounding as unchanged.
+     */
+    private boolean sameStoredInstant(Instant left, Instant right) {
+        if (left == null || right == null) {
+            return left == right;
+        }
+        return Math.abs(left.getEpochSecond() - right.getEpochSecond()) <= 1;
+    }
+
+    private void validateProjectSettings(
+            Project project, Instant deadline, Instant previousDeadline) {
         if (project.getMinTeamSize() < 2) {
             throw new BusinessException("Minimum team size must be at least 2");
         }
@@ -166,10 +233,12 @@ public class ProjectService {
         if (project.getTeamSizeSlack() < 0) {
             throw new BusinessException("Team size slack must be at least 0");
         }
-        if (deadline != null && !deadline.isAfter(Instant.now())) {
+        // An unchanged deadline may already be in the past after an automatic
+        // lock; only a newly supplied or changed deadline must be in the future.
+        if (deadline != null && !sameStoredInstant(deadline, previousDeadline)
+                && !deadline.isAfter(Instant.now())) {
             throw new BusinessException("Preference deadline must be in the future when set");
         }
-        // Database checks also enforce the same rules.
     }
 
     private ProjectResponse toResponse(Project project) {

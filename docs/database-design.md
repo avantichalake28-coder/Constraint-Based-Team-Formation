@@ -8,8 +8,9 @@
 | V2 | Initial domain tables and foreign keys. |
 | V3 | Task 2.2b corrections: SRN moved to profiles, team-size range, preference constraints, candidate/finalized team split, formation-job seed/version, source/provenance columns. |
 | V4 | Task 2.4: make `candidate_teams.formation_job_id` NOT NULL with `ON DELETE CASCADE`, add `email_verification_tokens` (hash-only, expires/used), update `app_metadata.schema_version` to 4.0.0. |
+| V5 | Task 2.6: add `project_constraint_versions` for constraint version actors/timestamps and update `app_metadata.schema_version` to 5.0.0. |
 
-V1 and V2 are immutable. All schema corrections live in `V3__schema_corrections.sql`.
+V1–V4 are immutable. All schema corrections live in a later versioned migration. Task 2.5 Part A and Engine 1 use the existing tables as designed. V5 adds only the constraint-version companion table; it does not alter or rewrite existing domain rows.
 
 ## Entity-relationship diagram
 
@@ -25,6 +26,7 @@ erDiagram
     USERS ||--o{ FINALIZED_TEAMS : "finalizes"
     USERS ||--o{ FINALIZED_TEAM_MEMBERSHIPS : "is member"
     USERS ||--o{ EMAIL_VERIFICATION_TOKENS : "requests verification"
+    USERS ||--o{ PROJECT_CONSTRAINT_VERSIONS : "changes"
 
     STUDENT_PROFILES ||--o{ STUDENT_SKILLS : "claims"
     SKILLS ||--o{ STUDENT_SKILLS : "is claimed"
@@ -32,6 +34,7 @@ erDiagram
     PROJECTS ||--o{ PROJECT_ROSTER : "has roster"
     PROJECTS ||--o{ TEAMMATE_PREFERENCES : "receives"
     PROJECTS ||--o{ PROJECT_CONSTRAINTS : "configures"
+    PROJECTS ||--o{ PROJECT_CONSTRAINT_VERSIONS : "versions"
     PROJECTS ||--o{ FORMATION_JOBS : "runs"
     PROJECTS ||--o{ CANDIDATE_TEAMS : "produces"
     PROJECTS ||--o{ FINALIZED_TEAMS : "finalizes"
@@ -130,6 +133,14 @@ erDiagram
         timestamp created_at
     }
 
+    PROJECT_CONSTRAINT_VERSIONS {
+        bigint id PK
+        bigint project_id FK
+        int version
+        bigint changed_by FK
+        timestamp changed_at
+    }
+
     FORMATION_JOBS {
         bigint id PK
         bigint project_id FK
@@ -222,6 +233,39 @@ erDiagram
     }
 ```
 
+## Engine 1 usage notes
+
+Engine 1 reuses the V2/V3 tables without schema changes:
+
+* `projects.status` moves through `DRAFT` → `PUBLISHED` → `PREFERENCES_LOCKED`. Later lifecycle values are owned by future engines and are retained when a mentor locks preferences manually.
+* `projects.preferences_locked_at` records a manual lock. `projects.preference_deadline` is the automatic lock trigger; a project is locked when either is set/reached.
+* `project_roster` is still the only eligibility source for preferences, candidate-team members and finalized memberships. Roster removal is blocked by those references, so an application-level 409 is returned before MySQL rejects the delete.
+* `teammate_preferences` keeps `UNIQUE(project_id, student_id, priority_rank)` and one-to-two ranks. Engine 1 writes rank 1 and 2 from the request order.
+* `student_profiles` and `student_skills` are updated only through student-owned endpoints. SRN and email are not editable.
+* `skills.name` retains its case-insensitive unique collation; the service also maps a concurrent duplicate insert to 409.
+
+`preference_deadline` and `preferences_locked_at` are second-precision `TIMESTAMP` columns. MySQL rounds sub-second values on write, so the service compares deadline values with a one-second tolerance when deciding whether a request actually changed a locked field.
+
+## Engine 2 usage notes
+
+Engine 2 reuses `project_constraints` and adds one companion table in V5:
+
+* `project_constraints.version` is the configuration version. A save inserts a new set of rows with the next version; older rows are never updated or deleted, so a formation job can keep referencing the version it started with.
+* `constraint_type` is `HARD` for both Task 2.6 rule types, prohibited pairs and mandatory skills.
+* `rule_type` is one of `PROHIBITED_PAIR` (`rule_configuration` = `studentId1,studentId2`) or `MANDATORY_SKILL` (`skillId:minimumProficiency`). Older rule types remain in the enum but are ignored by the Task 2.6 reader.
+* `project_constraint_versions` has one row per saved version and is the authoritative source for the current version. It is separate because an empty configuration has no `project_constraints` rows, so the actor and timestamp cannot live only on those rows.
+* The current version is the highest `version` for the project. A project with no version row reports configuration version `0` with empty lists and no actor.
+* Both foreign keys are deliberate: `project_id` cascades when a project is deleted, and `changed_by` uses `ON DELETE RESTRICT` so an audit row cannot lose its actor. `UNIQUE(project_id, version)` prevents duplicate versions.
+* The feasibility report reads `project_roster` entries with eligibility `ELIGIBLE`, student skills and the current configuration. It writes nothing.
+
+## Key constraints added or confirmed by V5
+
+| Area | Constraint |
+| --- | --- |
+| Constraint versions | `UNIQUE(project_id, version)`; `project_id` references `projects(id) ON DELETE CASCADE`; `changed_by` references `users(id) ON DELETE RESTRICT`; `changed_by` and `changed_at` are `NOT NULL`. |
+| App metadata | `app_metadata.schema_version` is advanced to `5.0.0` with an idempotent upsert; no other metadata row is deleted. |
+| Data safety | V5 creates a new table only. No existing table is dropped, altered or rewritten, and no row is deleted or modified apart from the schema-version metadata value. |
+
 ## Key constraints added or confirmed by V4
 
 | Area | Constraint |
@@ -251,4 +295,5 @@ erDiagram
 * Until V4, `candidate_teams.formation_job_id` was nullable because the legacy V2 column was nullable. V4 makes it `NOT NULL`; every candidate team now has an owning formation run.
 * `email_verification_tokens` stores only a SHA-256 hash of the 256-bit random token. The raw token exists only in the verification email and is never written to the database or logs.
 * `priority_rank` is the real V2 column name and is retained; constraints use that name.
+* `project_constraint_versions` is the only V5 table. It stores audit data and the current version number; the actual rule rows remain in `project_constraints` keyed by the same `version`.
 * No phone, mobile, contact or MSISDN column exists in the live schema. A test checks `information_schema.columns` for such names.

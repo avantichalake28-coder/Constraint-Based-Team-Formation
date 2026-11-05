@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -24,6 +25,13 @@ public interface StudentSkillRepository extends JpaRepository<StudentSkill, Long
      */
     @EntityGraph(attributePaths = "skill")
     List<StudentSkill> findByStudentProfileId(Long profileId);
+
+    /**
+     * Use case: the feasibility checker loads the skills of every rostered
+     * student in one query instead of one query per student.
+     */
+    @EntityGraph(attributePaths = "skill")
+    List<StudentSkill> findByStudentProfileIdIn(Collection<Long> profileIds);
 
     /**
      * Use case: replace the whole skill set in one transaction. The delete is

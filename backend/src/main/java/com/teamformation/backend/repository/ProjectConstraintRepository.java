@@ -18,4 +18,10 @@ public interface ProjectConstraintRepository extends JpaRepository<ProjectConstr
      * A list is used because a project holds a small, bounded configuration set.
      */
     List<ProjectConstraint> findByProjectIdAndActiveTrue(Long projectId);
+
+    /**
+     * Use case: read one historical or current configuration by its stable
+     * version number. Rows of other versions are never included.
+     */
+    List<ProjectConstraint> findByProjectIdAndVersionOrderByIdAsc(Long projectId, Integer version);
 }

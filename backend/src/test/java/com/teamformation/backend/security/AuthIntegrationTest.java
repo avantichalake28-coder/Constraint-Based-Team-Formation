@@ -1,5 +1,6 @@
 package com.teamformation.backend.security;
 
+import com.teamformation.backend.TestDatabaseCleaner;
 import com.teamformation.backend.TestcontainersConfiguration;
 import com.teamformation.backend.entity.EmailVerificationToken;
 import com.teamformation.backend.entity.StudentProfile;
@@ -23,6 +24,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,7 +32,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -54,7 +55,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
-@Transactional
 @ExtendWith(OutputCaptureExtension.class)
 class AuthIntegrationTest {
 
@@ -86,6 +86,9 @@ class AuthIntegrationTest {
     @Autowired
     private LoginAttemptService loginAttemptService;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @MockitoBean
     private JavaMailSender mailSender;
 
@@ -93,6 +96,7 @@ class AuthIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        TestDatabaseCleaner.clean(jdbcTemplate);
         loginAttemptService.clearAll();
         sentMessages.clear();
         doAnswer(invocation -> {

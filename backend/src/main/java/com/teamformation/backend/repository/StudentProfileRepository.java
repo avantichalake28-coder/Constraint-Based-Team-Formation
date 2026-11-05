@@ -5,6 +5,8 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -32,4 +34,19 @@ public interface StudentProfileRepository extends JpaRepository<StudentProfile, 
      * Use case: registration must reject an SRN that already exists.
      */
     boolean existsBySrn(String srn);
+
+    /**
+     * Use case: resolve a batch of roster SRNs in one query.
+     * The owning user is fetched eagerly because roster responses need the
+     * student's name, email and active state.
+     */
+    @EntityGraph(attributePaths = "user")
+    List<StudentProfile> findBySrnIn(Collection<String> srns);
+
+    /**
+     * Use case: decorate a page of roster or preference rows with each
+     * student's SRN without issuing one query per row.
+     */
+    @EntityGraph(attributePaths = "user")
+    List<StudentProfile> findByUserIdIn(Collection<Long> userIds);
 }

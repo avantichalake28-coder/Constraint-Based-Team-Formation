@@ -37,6 +37,20 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorResponse, ex.getHttpStatus());
     }
 
+    @ExceptionHandler(InvalidRosterSrnsException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidRosterSrns(
+            InvalidRosterSrnsException ex, HttpServletRequest request) {
+        log.warn("Invalid roster SRNs at {}: {}", request.getRequestURI(), ex.getInvalidSrns());
+        ErrorResponse errorResponse = ErrorResponse.ofInvalidSrns(
+                ex.getHttpStatus().value(),
+                ex.getHttpStatus().getReasonPhrase(),
+                ex.getMessage(),
+                request.getRequestURI(),
+                ex.getInvalidSrns()
+        );
+        return new ResponseEntity<>(errorResponse, ex.getHttpStatus());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException ex, HttpServletRequest request) {
         Map<String, String> errors = new HashMap<>();
