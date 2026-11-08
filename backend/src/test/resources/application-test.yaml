@@ -31,6 +31,17 @@ spring:
 server:
   port: 0
 
+# Keep the scheduled stale-job sweep out of the test path. Reaper tests call
+# reapStaleJobs(Instant) directly and therefore do not depend on wall time.
+formation:
+  jobs:
+    stale-timeout: PT5M
+    reaper-interval: PT24H
+    reaper-initial-delay: PT24H
+    global-concurrency: 4
+    per-mentor-concurrency: 2
+    execution-budget: PT30S
+
 management:
   endpoints:
     web:

@@ -26,6 +26,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -74,11 +76,11 @@ public class RosterService {
         this.projectService = projectService;
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public RosterAddResponse addToRoster(
             Authentication authentication, Long projectId, AddRosterRequest request) {
         User mentor = currentUserService.requireCurrentUserWithRole(authentication, UserRole.MENTOR);
-        Project project = requireOwnedProject(projectId, mentor);
+        Project project = requireOwnedProjectForUpdate(projectId, mentor);
         if (projectService.arePreferencesLocked(project)) {
             throw new BusinessException(
                     "The roster cannot change after preferences are locked", HttpStatus.CONFLICT);
@@ -167,10 +169,10 @@ public class RosterService {
         }));
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void removeFromRoster(Authentication authentication, Long projectId, Long studentId) {
         User mentor = currentUserService.requireCurrentUserWithRole(authentication, UserRole.MENTOR);
-        Project project = requireOwnedProject(projectId, mentor);
+        Project project = requireOwnedProjectForUpdate(projectId, mentor);
         if (projectService.arePreferencesLocked(project)) {
             throw new BusinessException(
                     "The roster cannot change after preferences are locked", HttpStatus.CONFLICT);
@@ -194,6 +196,21 @@ public class RosterService {
     private Project requireOwnedProject(Long projectId, User mentor) {
         return projectRepository.findByIdAndMentorId(projectId, mentor.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+    }
+
+    /**
+     * Locks the project row before any roster mutation so a roster change
+     * cannot interleave with a formation input snapshot (T1) or with a
+     * concurrent roster change. The lock is always the project row, never a
+     * roster row, to keep one lock order across the application.
+     */
+    private Project requireOwnedProjectForUpdate(Long projectId, User mentor) {
+        Project project = projectRepository.findByIdForUpdate(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+        if (!Objects.equals(project.getMentor().getId(), mentor.getId())) {
+            throw new ResourceNotFoundException("Project", "id", projectId);
+        }
+        return project;
     }
 
     private boolean isVerifiedStudent(User user) {

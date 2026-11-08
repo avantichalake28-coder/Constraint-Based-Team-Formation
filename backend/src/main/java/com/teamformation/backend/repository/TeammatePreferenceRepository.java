@@ -34,6 +34,14 @@ public interface TeammatePreferenceRepository extends JpaRepository<TeammatePref
     Page<TeammatePreference> findByProjectIdOrderByStudentIdAscRankAsc(Long projectId, Pageable pageable);
 
     /**
+     * Use case: the formation input loader needs every preference of one
+     * project in one unpaged query. The project holds at most two rows per
+     * rostered student.
+     */
+    @EntityGraph(attributePaths = {"student", "preferredStudent"})
+    List<TeammatePreference> findByProjectIdOrderByStudentIdAscRankAsc(Long projectId);
+
+    /**
      * Use case: roster removal is blocked while the student still has any
      * preference in the project.
      */

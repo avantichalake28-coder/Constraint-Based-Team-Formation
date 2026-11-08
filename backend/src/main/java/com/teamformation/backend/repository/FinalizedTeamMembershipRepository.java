@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+
 /**
  * Spring Data JPA repository for {@link FinalizedTeamMembership}.
  * Supports reading and authorising finalized memberships (FR-10, FR-12).
@@ -34,4 +35,10 @@ public interface FinalizedTeamMembershipRepository extends JpaRepository<Finaliz
      * team membership in the project.
      */
     boolean existsByProjectIdAndStudentId(Long projectId, Long studentId);
+
+    /**
+     * Use case: the post-completion constraint policy must know whether the
+     * project already has finalized membership history.
+     */
+    boolean existsByProjectId(Long projectId);
 }

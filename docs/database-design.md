@@ -10,7 +10,7 @@
 | V4 | Task 2.4: make `candidate_teams.formation_job_id` NOT NULL with `ON DELETE CASCADE`, add `email_verification_tokens` (hash-only, expires/used), update `app_metadata.schema_version` to 4.0.0. |
 | V5 | Task 2.6: add `project_constraint_versions` for constraint version actors/timestamps and update `app_metadata.schema_version` to 5.0.0. |
 
-V1–V4 are immutable. All schema corrections live in a later versioned migration. Task 2.5 Part A and Engine 1 use the existing tables as designed. V5 adds only the constraint-version companion table; it does not alter or rewrite existing domain rows.
+V1–V4 are immutable. All schema corrections live in a later versioned migration. Task 2.5 Part A and Engine 1 use the existing tables as designed. V5 adds only the constraint-version companion table; it does not alter or rewrite existing domain rows. Engine 3 (V2.9) adds no migration: formation jobs, candidate teams and candidate members already have the required columns, foreign keys and uniqueness rules.
 
 ## Entity-relationship diagram
 

@@ -131,6 +131,43 @@ Feasibility:
 * A prohibited pair that references a non-rostered student, or that cannot be separated because fewer than two teams are possible, produces a `WARNING` finding. Warnings are advisory and do not change the overall status. `FEASIBLE` means only that these checks did not prove infeasibility; every report carries that disclaimer.
 * `POST /feasibility` is read-only. It counts only roster entries whose eligibility is `ELIGIBLE`, uses the current constraint version, writes no version or constraint row, and returns the plan, mandatory-skill coverage, findings and disclaimer.
 
+## Engine 3: formation jobs and candidate teams
+
+Engine 3 is a synchronous formation run over the frozen Engine 1/2 inputs. It reuses the existing `projects`, `project_roster`, `teammate_preferences`, `project_constraints`, `project_constraint_versions`, `formation_jobs`, `candidate_teams` and `candidate_team_members` tables; no V6 migration is added.
+
+API surface (all endpoints require the owning mentor and return `ApiResponse`):
+
+* `POST /api/v1/projects/{projectId}/formation-jobs` starts a run and returns the completed job with its candidate teams.
+* `GET /api/v1/projects/{projectId}/formation-jobs/{jobId}` returns one completed or failed job and its persisted candidate teams.
+* `GET /api/v1/projects/{projectId}/formation-jobs?status=...&page=...&size=...` pages job history, optionally filtered by status.
+
+Lifecycle and transactions:
+
+* `FormationService` is the only orchestrator. It does not run inside a controller-level transaction and uses three explicit `TransactionTemplate` phases.
+* **T1** locks the project row, checks ownership, project status, `ProjectService.arePreferencesLocked`, the absence of another `READY`/`RUNNING` job, and the current constraint rows, then loads the eligible roster, skills, preferences, team-size settings and the current constraint version. A failure here writes no job. A success writes a `READY` job with the seed, algorithm version and constraint version.
+* **T2** locks the job row, requires `READY`, records `RUNNING`, re-checks that the current constraint version equals the job's recorded version, executes the pure engine, validates the plan, persists candidate teams and `ALGORITHM` members, flushes, and verifies the persisted shape before marking the job `COMPLETED`.
+* **T3** runs in a new transaction after a T2 failure, locks the job and moves `READY`/`RUNNING` to `FAILED` with a safe reason truncated to 2000 characters. T2 candidate rows are rolled back, so a failed job has no teams or members.
+* Reruns are allowed after a `COMPLETED` job. A `READY` or `RUNNING` job rejects a second run with 409. Engine 3 never changes the project status and never writes `FORMED`.
+
+Supported configuration:
+
+* Only `HARD` rules of type `PROHIBITED_PAIR` and `MANDATORY_SKILL` are executable. The loader inspects the current version's rows directly (rather than relying on the Engine 2 loader, which intentionally ignores unknown rule types) and rejects any soft row or unsupported rule type with 409 before a job is created.
+* Mandatory skills are enforced per team at the configured minimum proficiency. The project status must be `PUBLISHED` or `PREFERENCES_LOCKED`, and preferences must effectively be locked.
+
+Pure formation engine:
+
+* `FormationInput` contains plain Java values only: eligible students, skill maps, directed preferences, prohibited pairs, mandatory skills and the Engine 2 `TeamSizePlan`. It has no JPA, repository, HTTP or transaction dependency.
+* `FormationEngine` is deterministic. Students are ordered by seed-derived rank then id, teams are filled greedily, empty-team symmetry is skipped, mandatory-skill coverage is pruned, and bounded backtracking repairs failures. A bounded best-improvement pairwise-swap local search then runs over the accepted plan.
+* The node budget is one placement attempt after capacity and symmetry filtering. `formation.search.max-nodes` defaults to 250000 and `formation.search.max-improvement-passes` defaults to 100. Both are validated at startup and a non-positive value fails the application.
+* The objective is lexicographic: maximise total preference score, minimise students with preferences but none satisfied, then minimise the seed-derived plan tie-break. A student without preferences is excluded from the unsatisfied count. Rank 1 is 1.0 and rank 2 is 0.5; preferences are directed, mutual pairs count twice, and no normalisation or `ProjectConstraint.weight` is used.
+* `FormationPlanValidator` runs after the engine and before persistence. It rejects an invalid seed/algorithm version, wrong team count or sizes, missing/duplicate/ineligible students, mismatched scores, non-canonical team ordering or names, prohibited pairs in one team, missing mandatory-skill coverage, incorrect metrics or a mismatched tie-break.
+* Team names are `Team 01`, `Team 02`, ... with a zero-padded width of `max(2, digits(teamCount))`. Teams are ordered by descending planned size and then by the smallest member student id, which makes names unique within a job.
+* The engine's result is a bounded heuristic and is never presented as the global optimum. If the node budget is exhausted before a valid plan is found, the run fails without persisting a partial plan.
+
+Frozen-reference limitation:
+
+* A job records the constraint version, seed and algorithm version but not roster, preference, team-size or skill snapshots. Re-running a job uses the inputs as they exist at the new run. Historical results remain readable because candidate teams and members are persisted, but an old job cannot be replayed byte-for-byte if those inputs changed. This is a deliberate V2.9 scope limit; snapshot tables and replay are deferred.
+
 ## Mail and external configuration
 
 Verification mail uses Spring's `JavaMailSender` with `MAIL_HOST`, `MAIL_PORT`, `MAIL_FROM` and `APP_BASE_URL`. The development default is Mailpit on `localhost:1025` (SMTP) with the web inbox on port 8025. Test runs replace `JavaMailSender` with a mock where mail content matters; no SMTP server is required for `clean verify`.
@@ -154,6 +191,10 @@ Secrets and deployment-specific values are read only from the environment: `DB_*
 * `RegistrationRollbackIntegrationTest` runs registration inside a rolled-back transaction and proves no user, profile, token or mail is persisted.
 * `Engine1ProfileSkillIntegrationTest`, `Engine1ProjectIntegrationTest`, `Engine1RosterIntegrationTest` and `Engine1PreferenceIntegrationTest` cover ownership, role rejection, validation, status transitions, visibility, locking (including concurrency), all-or-nothing rosters and preference confidentiality.
 * `Engine2ConstraintIntegrationTest` and `Engine2FeasibilityIntegrationTest` cover version 0, full/empty/historical versions, validation with no writes, ownership and role rejection, `FORMED`/later and active-job freezes, concurrent version allocation, read-only feasibility, roster eligibility, below-minimum and slack-zero plans, mandatory-skill shortage, off-roster pairs and team-size infeasibility.
+* Unit tests cover `CompatibilityScorer` (directed weights, mutual pairs, unsatisfied and no-preference metrics), `DeterministicTieBreaker`, `FormationEngine` (success, prohibited pairs, mandatory skills, search limits, determinism), `FormationPlanValidator`, `TeamNameGenerator` and `FormationSearchProperties` (defaults and startup rejection).
+* `Engine3FormationIntegrationTest` covers successful persistence, `ALGORITHM` source, team naming, seed/version recording, project-status preservation, rerun after completion, pre-job failures with no job, unsupported soft/rule-type rejection, mandatory-skill and prohibited-pair enforcement, API role/ownership security, retrieval/history paging and eligible-only rosters.
+* `Engine3FormationConcurrencyIntegrationTest` holds the real engine inside T2 and proves a second run receives 409 while the first job is `RUNNING`.
+* `Engine3FormationFailureIntegrationTest` injects a persistence failure after one candidate team is written and proves T2 rolls back, T3 records one `FAILED` job with a safe reason, and no candidate teams or members remain.
 * `ClassmatesIntegrationTest` covers self-exclusion, paging, draft/non-rostered visibility, visibility after a preference lock and role/authentication rejection.
 * `TestDatabaseCleanerTest` proves the integration cleaner refuses non-Testcontainers URLs, including the real `student_team_formation` database; `TestDatabaseCleaner` requires a `jdbc:mysql://` localhost URL, a non-3306 random port and database name `test`.
 * `StartupConfigurationTest`, `AdminSeedIntegrationTest` and `HealthIntegrationTest` cover fail-fast configuration, first-admin seeding and health with unreachable SMTP.

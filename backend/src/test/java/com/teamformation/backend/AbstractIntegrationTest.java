@@ -2,7 +2,10 @@ package com.teamformation.backend;
 
 import com.teamformation.backend.entity.Project;
 import com.teamformation.backend.entity.ProjectRoster;
+import com.teamformation.backend.entity.Skill;
 import com.teamformation.backend.entity.StudentProfile;
+import com.teamformation.backend.entity.StudentSkill;
+import com.teamformation.backend.entity.TeammatePreference;
 import com.teamformation.backend.entity.User;
 import com.teamformation.backend.entity.enums.ProjectStatus;
 import com.teamformation.backend.entity.enums.RosterEligibilityStatus;
@@ -30,6 +33,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Common non-transactional integration test setup. Each test commits its own
@@ -131,6 +136,40 @@ public abstract class AbstractIntegrationTest {
             projectRosterRepository.saveAndFlush(
                     new ProjectRoster(project, student, RosterEligibilityStatus.ELIGIBLE));
         }
+    }
+
+    protected Project saveFormationProject(
+            User mentor, ProjectStatus status, int min, int max, int slack) {
+        Project project = new Project(
+                mentor, "Project", "Problem statement", "CS301", min, max, slack, null);
+        project.setStatus(status);
+        return projectRepository.saveAndFlush(project);
+    }
+
+    protected List<User> saveStudents(int count, String emailPrefix, int firstSrnSuffix) {
+        List<User> students = new ArrayList<>();
+        for (int index = 0; index < count; index++) {
+            students.add(saveStudent(
+                    emailPrefix + "." + index + "@college.edu",
+                    "02FE24BCS" + (firstSrnSuffix + index)));
+        }
+        return students;
+    }
+
+    protected Skill createSkill(String name) {
+        return skillRepository.saveAndFlush(new Skill(name, "Engineering", null));
+    }
+
+    protected void assignSkill(User student, Skill skill, int proficiency) {
+        StudentProfile profile = studentProfileRepository.findByUserId(student.getId())
+                .orElseThrow();
+        studentSkillRepository.saveAndFlush(
+                new StudentSkill(profile, skill, proficiency));
+    }
+
+    protected void addPreference(Project project, User student, User preferred, int rank) {
+        teammatePreferenceRepository.saveAndFlush(
+                new TeammatePreference(project, student, preferred, rank));
     }
 
     protected static String projectJson(String title, Integer min, Integer max, Integer slack, Instant deadline) {

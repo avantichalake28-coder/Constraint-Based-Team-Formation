@@ -10,12 +10,15 @@ import com.teamformation.backend.entity.User;
 import com.teamformation.backend.entity.enums.UserRole;
 import com.teamformation.backend.exception.BusinessException;
 import com.teamformation.backend.exception.ResourceNotFoundException;
+import com.teamformation.backend.repository.ProjectRepository;
+import com.teamformation.backend.repository.ProjectRosterRepository;
 import com.teamformation.backend.repository.SkillRepository;
 import com.teamformation.backend.repository.StudentProfileRepository;
 import com.teamformation.backend.repository.StudentSkillRepository;
 import com.teamformation.backend.security.authentication.CurrentUserService;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -36,16 +39,22 @@ public class StudentSkillService {
     private final StudentSkillRepository studentSkillRepository;
     private final StudentProfileRepository studentProfileRepository;
     private final SkillRepository skillRepository;
+    private final ProjectRosterRepository projectRosterRepository;
+    private final ProjectRepository projectRepository;
     private final CurrentUserService currentUserService;
 
     public StudentSkillService(
             StudentSkillRepository studentSkillRepository,
             StudentProfileRepository studentProfileRepository,
             SkillRepository skillRepository,
+            ProjectRosterRepository projectRosterRepository,
+            ProjectRepository projectRepository,
             CurrentUserService currentUserService) {
         this.studentSkillRepository = studentSkillRepository;
         this.studentProfileRepository = studentProfileRepository;
         this.skillRepository = skillRepository;
+        this.projectRosterRepository = projectRosterRepository;
+        this.projectRepository = projectRepository;
         this.currentUserService = currentUserService;
     }
 
@@ -58,10 +67,17 @@ public class StudentSkillService {
                 .toList();
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public List<StudentSkillResponse> replaceMySkills(
             Authentication authentication, UpdateStudentSkillsRequest request) {
         StudentProfile profile = loadOwnProfile(authentication);
+
+        // Serialise this replacement with formation input loading for every
+        // project the student is rostered on. Rows are locked in ascending id
+        // order so two concurrent skill updates cannot deadlock each other, and
+        // T1 always takes a single project lock, so no cycle is possible.
+        lockRosteredProjects(profile.getUser().getId());
+
         List<StudentSkillRequest> requested = request.skills();
 
         Set<Long> seen = new LinkedHashSet<>();
@@ -98,6 +114,12 @@ public class StudentSkillService {
         User student = currentUserService.requireCurrentUserWithRole(authentication, UserRole.STUDENT);
         return studentProfileRepository.findByUserId(student.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("StudentProfile", "userId", student.getId()));
+    }
+
+    private void lockRosteredProjects(Long studentId) {
+        for (Long projectId : projectRosterRepository.findProjectIdsByStudentId(studentId)) {
+            projectRepository.findByIdForUpdate(projectId);
+        }
     }
 
     private StudentSkillResponse toResponse(StudentSkill studentSkill) {

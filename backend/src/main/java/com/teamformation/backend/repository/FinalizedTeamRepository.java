@@ -20,4 +20,10 @@ public interface FinalizedTeamRepository extends JpaRepository<FinalizedTeam, Lo
      */
     @EntityGraph(attributePaths = "finalizedBy")
     Page<FinalizedTeam> findByProjectIdOrderByTeamNameAsc(Long projectId, Pageable pageable);
+
+    /**
+     * Use case: the post-completion constraint policy must know whether the
+     * project already has finalized history.
+     */
+    boolean existsByProjectId(Long projectId);
 }
