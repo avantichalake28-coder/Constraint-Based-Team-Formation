@@ -12,7 +12,9 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import jakarta.validation.constraints.Min;
+import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -22,6 +24,7 @@ import java.util.Objects;
  * Corresponds to FR-03, FR-04 and owned by Engine E1 (data) & Engine E2 (rules).
  */
 @Entity
+@DynamicUpdate
 @Table(name = "projects")
 public class Project {
 
@@ -61,6 +64,10 @@ public class Project {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 30, nullable = false)
     private ProjectStatus status = ProjectStatus.DRAFT;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -167,6 +174,14 @@ public class Project {
 
     public void setStatus(ProjectStatus status) {
         this.status = status;
+    }
+
+    /**
+     * Optimistic-lock value. A new project starts at zero; every project row
+     * mutation increments it. It is never set by callers.
+     */
+    public Long getVersion() {
+        return version;
     }
 
     public Instant getCreatedAt() {

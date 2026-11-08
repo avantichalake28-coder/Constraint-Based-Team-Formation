@@ -45,6 +45,10 @@ public class FinalizedTeamMembership {
     @JoinColumn(name = "student_id", nullable = false)
     private User student;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "candidate_team_member_id")
+    private CandidateTeamMember candidateTeamMember;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "source", length = 20, nullable = false)
     private MembershipSource source = MembershipSource.ALGORITHM;
@@ -61,6 +65,20 @@ public class FinalizedTeamMembership {
         this.student = student;
         this.source = (source != null) ? source : MembershipSource.ALGORITHM;
         this.assignedAt = Instant.now();
+    }
+
+    /**
+     * Creates a membership with an optional candidate-membership provenance
+     * link. The link is nullable so legacy rows remain valid.
+     */
+    public FinalizedTeamMembership(
+            FinalizedTeam finalizedTeam,
+            Project project,
+            User student,
+            CandidateTeamMember candidateTeamMember,
+            MembershipSource source) {
+        this(finalizedTeam, project, student, source);
+        this.candidateTeamMember = candidateTeamMember;
     }
 
     public Long getId() {
@@ -89,6 +107,14 @@ public class FinalizedTeamMembership {
 
     public void setStudent(User student) {
         this.student = student;
+    }
+
+    public CandidateTeamMember getCandidateTeamMember() {
+        return candidateTeamMember;
+    }
+
+    public void setCandidateTeamMember(CandidateTeamMember candidateTeamMember) {
+        this.candidateTeamMember = candidateTeamMember;
     }
 
     public MembershipSource getSource() {

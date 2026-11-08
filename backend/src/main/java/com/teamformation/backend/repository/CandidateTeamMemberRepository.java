@@ -23,6 +23,20 @@ public interface CandidateTeamMemberRepository extends JpaRepository<CandidateTe
     List<CandidateTeamMember> findByCandidateTeamIdOrderByStudentIdAsc(Long candidateTeamId);
 
     /**
+     * Use case: load every membership of one run in one query for the result
+     * view and for persistence verification. The student is fetched with each
+     * row; the candidate team id is a scalar on the row.
+     */
+    @EntityGraph(attributePaths = "student")
+    List<CandidateTeamMember> findByFormationJobIdOrderByCandidateTeamIdAscStudentIdAsc(Long formationJobId);
+
+    /**
+     * Use case: verify that every planned membership was persisted before the
+     * job is marked COMPLETED.
+     */
+    long countByFormationJobId(Long formationJobId);
+
+    /**
      * Use case: roster removal is blocked while the student has any candidate
      * team membership in the project.
      */

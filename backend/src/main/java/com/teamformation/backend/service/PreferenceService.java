@@ -21,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -65,11 +66,15 @@ public class PreferenceService {
      * Replaces all of the student's preferences for one project in a single
      * transaction. The request order defines rank 1, 2, ...
      */
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public List<PreferenceResponse> replaceMyPreferences(
             Authentication authentication, Long projectId, UpdatePreferencesRequest request) {
         User student = currentUserService.requireCurrentUserWithRole(authentication, UserRole.STUDENT);
-        Project project = projectRepository.findById(projectId)
+        // Lock the project row so a preference replacement cannot interleave
+        // with a formation input snapshot (T1). Preferences are the student's
+        // own rows, so the project lock (not the student) is the serialisation
+        // point that T1 also takes.
+        Project project = projectRepository.findByIdForUpdate(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
 
         if (projectService.arePreferencesLocked(project)) {

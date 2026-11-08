@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -75,11 +76,10 @@ public class ProjectService {
         return toResponse(project);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public ProjectResponse updateProject(Authentication authentication, Long projectId, ProjectRequest request) {
         User mentor = currentUserService.requireCurrentUserWithRole(authentication, UserRole.MENTOR);
-        Project project = projectRepository.findByIdAndMentorId(projectId, mentor.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+        Project project = requireOwnedProjectForUpdate(projectId, mentor);
 
         if (arePreferencesLocked(project) && changesLockedSettings(project, request)) {
             throw new BusinessException(
@@ -154,11 +154,10 @@ public class ProjectService {
                 "You do not have permission to access this resource", HttpStatus.FORBIDDEN);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public ProjectResponse publishProject(Authentication authentication, Long projectId) {
         User mentor = currentUserService.requireCurrentUserWithRole(authentication, UserRole.MENTOR);
-        Project project = projectRepository.findByIdAndMentorId(projectId, mentor.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+        Project project = requireOwnedProjectForUpdate(projectId, mentor);
 
         if (project.getStatus() == ProjectStatus.PUBLISHED) {
             return toResponse(project);
@@ -172,7 +171,7 @@ public class ProjectService {
         return toResponse(project);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public ProjectLockResponse lockPreferences(Authentication authentication, Long projectId) {
         User mentor = currentUserService.requireCurrentUserWithRole(authentication, UserRole.MENTOR);
         // Load with a pessimistic write lock so two concurrent requests are
@@ -239,6 +238,21 @@ public class ProjectService {
                 && !deadline.isAfter(Instant.now())) {
             throw new BusinessException("Preference deadline must be in the future when set");
         }
+    }
+
+    /**
+     * Locks the project row before a lifecycle mutation. Ownership is checked
+     * after the lock so a cross-mentor request cannot observe or mutate another
+     * mentor's project. All project-scoped mutators take this lock first; the
+     * global lock order is Project, then FormationJob, then dependent rows.
+     */
+    private Project requireOwnedProjectForUpdate(Long projectId, User mentor) {
+        Project project = projectRepository.findByIdForUpdate(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+        if (!Objects.equals(project.getMentor().getId(), mentor.getId())) {
+            throw new ResourceNotFoundException("Project", "id", projectId);
+        }
+        return project;
     }
 
     private ProjectResponse toResponse(Project project) {

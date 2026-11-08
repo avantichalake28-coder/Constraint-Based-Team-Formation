@@ -70,6 +70,31 @@ spring:
     validate-on-migrate: true
 
 # =============================================================================
+# Engine 3 — bounded formation search
+# =============================================================================
+formation:
+  search:
+    # A node is one attempt to place one ordered student into one candidate
+    # team after capacity and symmetry filtering.
+    max-nodes: 250000
+    # Reaching this many accepted swaps with a valid plan is a successful run.
+    max-improvement-passes: 100
+  jobs:
+    # A committed READY or RUNNING job older than this is considered abandoned
+    # and is failed by the recovery reaper with STALE_JOB / RECOVERY.
+    stale-timeout: PT15M
+    # Scheduled sweep cadence. The sweep locks and rechecks one job at a time.
+    reaper-interval: PT1M
+    reaper-initial-delay: PT2M
+    # Bounded in-process admission control for synchronous runs. A request that
+    # cannot take both permits is rejected immediately with 429 and is not
+    # queued. The database project lock remains the cross-instance guarantee.
+    global-concurrency: 4
+    per-mentor-concurrency: 2
+    # Optional wall-clock budget for one in-process search.
+    execution-budget: PT30S
+
+# =============================================================================
 # Server
 # =============================================================================
 server:

@@ -17,6 +17,9 @@ import com.teamformation.backend.entity.enums.UserRole;
 import com.teamformation.backend.exception.BusinessException;
 import com.teamformation.backend.exception.ResourceNotFoundException;
 import com.teamformation.backend.repository.FormationJobRepository;
+import com.teamformation.backend.repository.CandidateTeamRepository;
+import com.teamformation.backend.repository.FinalizedTeamMembershipRepository;
+import com.teamformation.backend.repository.FinalizedTeamRepository;
 import com.teamformation.backend.repository.ProjectConstraintRepository;
 import com.teamformation.backend.repository.ProjectConstraintVersionRepository;
 import com.teamformation.backend.repository.ProjectRepository;
@@ -28,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -56,6 +60,9 @@ public class ConstraintConfigurationService {
     private final ProjectConstraintRepository projectConstraintRepository;
     private final ProjectConstraintVersionRepository versionRepository;
     private final FormationJobRepository formationJobRepository;
+    private final CandidateTeamRepository candidateTeamRepository;
+    private final FinalizedTeamRepository finalizedTeamRepository;
+    private final FinalizedTeamMembershipRepository finalizedTeamMembershipRepository;
     private final CurrentUserService currentUserService;
 
     public ConstraintConfigurationService(
@@ -65,6 +72,9 @@ public class ConstraintConfigurationService {
             ProjectConstraintRepository projectConstraintRepository,
             ProjectConstraintVersionRepository versionRepository,
             FormationJobRepository formationJobRepository,
+            CandidateTeamRepository candidateTeamRepository,
+            FinalizedTeamRepository finalizedTeamRepository,
+            FinalizedTeamMembershipRepository finalizedTeamMembershipRepository,
             CurrentUserService currentUserService) {
         this.projectRepository = projectRepository;
         this.projectRosterRepository = projectRosterRepository;
@@ -72,10 +82,13 @@ public class ConstraintConfigurationService {
         this.projectConstraintRepository = projectConstraintRepository;
         this.versionRepository = versionRepository;
         this.formationJobRepository = formationJobRepository;
+        this.candidateTeamRepository = candidateTeamRepository;
+        this.finalizedTeamRepository = finalizedTeamRepository;
+        this.finalizedTeamMembershipRepository = finalizedTeamMembershipRepository;
         this.currentUserService = currentUserService;
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public ConstraintConfigurationResponse replaceConstraints(
             Authentication authentication, Long projectId, ConstraintConfigurationRequest request) {
         User mentor = currentUserService.requireCurrentUserWithRole(authentication, UserRole.MENTOR);
@@ -135,6 +148,23 @@ public class ConstraintConfigurationService {
     }
 
     /**
+     * Returns the current constraint version of a project without loading the
+     * rules. Version 0 means no configuration has ever been saved.
+     *
+     * <p>This is used by T2 to prove that the constraint configuration that was
+     * captured in the T1 snapshot is still the current one. Joining the caller's
+     * transaction is intentional: the check runs while the project row is
+     * already locked by T2, so a concurrent save cannot commit between the
+     * check and the engine run.</p>
+     */
+    @Transactional(readOnly = true)
+    public int currentVersion(Long projectId) {
+        return versionRepository.findFirstByProjectIdOrderByVersionDesc(projectId)
+                .map(ProjectConstraintVersion::getVersion)
+                .orElse(0);
+    }
+
+    /**
      * Loads the current configuration for another service after that service
      * has performed its own authorisation. Version 0 means no configuration has
      * ever been saved.
@@ -165,6 +195,26 @@ public class ConstraintConfigurationService {
                     project.getId());
             throw new BusinessException(
                     "Constraints cannot change while a formation job is READY or RUNNING",
+                    HttpStatus.CONFLICT);
+        }
+
+        // Post-completion policy: a COMPLETED job plus candidate and/or
+        // finalized history is authoritative. Changing the input constraints
+        // afterwards would silently make the stored result unexplainable, so
+        // the save is blocked. The mentor must create a new project/version (or
+        // a future explicit stale-marking workflow must be introduced) to run
+        // with different constraints. No history is deleted.
+        boolean completedRun = formationJobRepository.existsByProjectIdAndJobStatus(
+                project.getId(), JobStatus.COMPLETED);
+        boolean authoritativeData = candidateTeamRepository.existsByProjectId(project.getId())
+                || finalizedTeamRepository.existsByProjectId(project.getId())
+                || finalizedTeamMembershipRepository.existsByProjectId(project.getId());
+        if (completedRun && authoritativeData) {
+            log.info("Rejecting constraint change for project {}: a completed formation run exists",
+                    project.getId());
+            throw new BusinessException(
+                    "Constraints cannot change after a formation run has completed. "
+                            + "Create a new project or a new version to run with different constraints",
                     HttpStatus.CONFLICT);
         }
     }
