@@ -25,7 +25,7 @@ public class EmailDomainPolicy {
         }
         if (normalized.isBlank() || !normalized.contains(".")) {
             throw new IllegalStateException(
-                    "ALLOWED_EMAIL_DOMAIN must be a domain such as college.edu");
+                    "ALLOWED_EMAIL_DOMAIN must be a valid domain such as example.edu");
         }
         this.allowedDomain = normalized;
     }

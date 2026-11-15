@@ -20,7 +20,7 @@ All deployment-specific values are supplied through environment variables. Copy 
 | `DB_NAME` | no | `student_team_formation` | Database name. |
 | `DB_USER` | yes | — | MySQL user. |
 | `DB_PASSWORD` | yes | — | MySQL password. |
-| `ALLOWED_EMAIL_DOMAIN` | yes | — | The only domain accepted for student registration, e.g. `college.edu`. Startup fails if blank. |
+| `ALLOWED_EMAIL_DOMAIN` | yes | — | The only domain accepted for student registration; set to `kletech.ac.in` for KLE Tech. Startup fails if blank. |
 | `JWT_SECRET` | yes | — | HMAC-SHA256 signing secret, at least 32 bytes. Startup fails if missing or too short. |
 | `MAIL_HOST` | no | `localhost` | SMTP host. |
 | `MAIL_PORT` | no | `1025` | SMTP port. |
@@ -47,7 +47,7 @@ docker run --name mailpit -d \
 * SMTP: `localhost:1025`
 * Web inbox: <http://localhost:8025>
 
-Set `MAIL_HOST=localhost`, `MAIL_PORT=1025` and `MAIL_FROM=no-reply@college.edu` (or your chosen sender). Verification links use `APP_BASE_URL`; open the link from the Mailpit inbox to activate the account.
+Set `MAIL_HOST=localhost`, `MAIL_PORT=1025` and `MAIL_FROM=no-reply@kletech.ac.in` (or your chosen sender). Verification links use `APP_BASE_URL`; open the link from the Mailpit inbox to activate the account.
 
 ## Database
 
@@ -102,6 +102,10 @@ Integration tests start a real `mysql:8.0` container through Testcontainers. The
 | `POST` | `/api/v1/auth/login` | Public |
 | `GET` | `/api/v1/auth/me` | Any authenticated user |
 | `POST` | `/api/v1/admin/mentors` | `ADMIN` only |
+| `GET` | `/api/v1/admin/students?search=&page=&size=` | `ADMIN` only; searches name, SRN or email |
+| `GET` | `/api/v1/admin/mentors?search=&page=&size=` | `ADMIN` only; searches name or email |
+| `GET` | `/api/v1/admin/projects?status=&page=&size=` | `ADMIN` only |
+| `GET` | `/api/v1/admin/overview` | `ADMIN` only; counts users, projects and formation jobs |
 | `GET` | `/api/v1/students/me` | `STUDENT` only |
 | `PUT` | `/api/v1/students/me` | `STUDENT` only |
 | `GET` | `/api/v1/students/me/skills` | `STUDENT` only |
@@ -187,7 +191,7 @@ curl.exe -X PUT http://localhost:8081/api/v1/students/me/skills `
 
 # Resend a verification email (public)
 curl.exe -X POST http://localhost:8081/api/v1/auth/resend-verification `
-  -H "Content-Type: application/json" -d '{"email":"student@college.edu"}'
+  -H "Content-Type: application/json" -d '{"email":"student@kletech.ac.in"}'
 ```
 
 All success responses use `{"success":true,"message":"...","data":...}`. Paged responses include `content`, `page`, `size`, `totalElements`, `totalPages`, `first` and `last`. Validation errors use `validationErrors`; roster all-or-nothing errors also include `invalidSrns`.

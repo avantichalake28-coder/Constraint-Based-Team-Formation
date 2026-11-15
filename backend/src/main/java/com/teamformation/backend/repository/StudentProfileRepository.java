@@ -1,8 +1,14 @@
 package com.teamformation.backend.repository;
 
+import com.teamformation.backend.dto.AdminStudentResponse;
 import com.teamformation.backend.entity.StudentProfile;
+import com.teamformation.backend.entity.enums.UserRole;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
@@ -15,6 +21,32 @@ import java.util.Optional;
  */
 @Repository
 public interface StudentProfileRepository extends JpaRepository<StudentProfile, Long> {
+
+    @Query(
+            value = """
+                    select new com.teamformation.backend.dto.AdminStudentResponse(
+                        u.id, u.fullName, u.email, s.srn, s.department, s.semester, u.active,
+                        (select count(r.id) from ProjectRoster r where r.student = u))
+                    from StudentProfile s join s.user u
+                    where u.role = :role
+                      and (:search is null
+                           or lower(u.fullName) like :search
+                           or lower(s.srn) like :search
+                           or lower(u.email) like :search)
+                    """,
+            countQuery = """
+                    select count(s.id)
+                    from StudentProfile s join s.user u
+                    where u.role = :role
+                      and (:search is null
+                           or lower(u.fullName) like :search
+                           or lower(s.srn) like :search
+                           or lower(u.email) like :search)
+                    """)
+    Page<AdminStudentResponse> findAdminStudents(
+            @Param("role") UserRole role,
+            @Param("search") String search,
+            Pageable pageable);
 
     /**
      * Use case: load the profile owned by a user after authentication.

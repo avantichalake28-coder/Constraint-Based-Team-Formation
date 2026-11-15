@@ -75,7 +75,7 @@ class RegistrationRollbackIntegrationTest {
         transaction.executeWithoutResult(status -> {
             registrationService.register(new RegisterRequest(
                     "Rollback Student",
-                    "rollback.student@college.edu",
+                    "rollback.student@kletech.ac.in",
                     "SuperSecret123",
                     "02FE24BCS311"));
             status.setRollbackOnly();

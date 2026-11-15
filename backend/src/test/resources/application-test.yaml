@@ -6,9 +6,9 @@
 # the environment.
 # =============================================================================
 
-ALLOWED_EMAIL_DOMAIN: college.edu
+ALLOWED_EMAIL_DOMAIN: kletech.ac.in
 JWT_SECRET: test-jwt-secret-0123456789abcdef0123456789abcdef
-MAIL_FROM: no-reply@college.edu
+MAIL_FROM: no-reply@kletech.ac.in
 APP_BASE_URL: http://localhost:8081
 
 spring:

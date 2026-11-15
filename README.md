@@ -1,13 +1,15 @@
 # Skill Match — Student Team Formation
 
-Backend implementation of the Student Team Formation system: Spring Boot 4.1.2, Java 21, MySQL 8.0, Flyway and Testcontainers.
-
 ## Quick start
 
 * Backend setup, environment variables, Mailpit and run/test commands: [`backend/README.md`](backend/README.md)
+* Authentication frontend setup, backend integration and verification: [`frontend/README.md`](frontend/README.md)
 * Architecture: [`docs/architecture.md`](docs/architecture.md)
 * Database design: [`docs/database-design.md`](docs/database-design.md)
 * Decisions and assumptions: [`docs/decision-log.md`](docs/decision-log.md)
+
+The React/TypeScript frontend lives in `frontend/`; the Spring Boot API and
+database live in `backend/`.
 
 ## Current scope
 

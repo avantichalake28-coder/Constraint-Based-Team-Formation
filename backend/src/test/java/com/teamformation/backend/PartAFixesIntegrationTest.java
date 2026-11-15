@@ -181,14 +181,14 @@ class PartAFixesIntegrationTest extends AbstractIntegrationTest {
                         .content("""
                                 {
                                   "fullName": "Mail Failure",
-                                  "email": "mail.failure@college.edu",
+                                  "email": "mail.failure@kletech.ac.in",
                                   "password": "%s",
                                   "srn": "02FE24BCS303"
                                 }
                                 """.formatted(PASSWORD)))
                 .andExpect(status().isCreated());
 
-        User saved = userRepository.findByEmailIgnoreCase("mail.failure@college.edu").orElseThrow();
+        User saved = userRepository.findByEmailIgnoreCase("mail.failure@kletech.ac.in").orElseThrow();
         assertThat(saved.isActive()).isFalse();
         assertThat(studentProfileRepository.findByUserId(saved.getId())).isPresent();
         assertThat(tokenRepository.count()).isEqualTo(1);

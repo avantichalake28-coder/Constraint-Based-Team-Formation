@@ -114,13 +114,13 @@ class AuthIntegrationTest {
     void register_success_createsInactiveStudentAndHashedToken() throws Exception {
         mockMvc.perform(post(REGISTER_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(registerJson("Student One", "student.one@college.edu", VALID_PASSWORD, "02FE24BCS141")))
+                        .content(registerJson("Student One", "student.one@KLETECH.AC.IN", VALID_PASSWORD, "02FE24BCS141")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.id").isNumber())
-                .andExpect(jsonPath("$.data.email").value("student.one@college.edu"));
+                .andExpect(jsonPath("$.data.email").value("student.one@kletech.ac.in"));
 
-        User saved = userRepository.findByEmailIgnoreCase("student.one@college.edu").orElseThrow();
+        User saved = userRepository.findByEmailIgnoreCase("student.one@kletech.ac.in").orElseThrow();
         assertThat(saved.isActive()).isFalse();
         assertThat(saved.getRole()).isEqualTo(UserRole.STUDENT);
         assertThat(studentProfileRepository.findByUserId(saved.getId()))
@@ -147,7 +147,7 @@ class AuthIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(registerJson("Student Two", "student@gmail.com", VALID_PASSWORD, "02FE24BCS142")))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", containsString("college.edu")));
+                .andExpect(jsonPath("$.validationErrors.email").value("Email must belong to the kletech.ac.in domain"));
 
         assertThat(userRepository.count()).isZero();
     }
@@ -157,7 +157,7 @@ class AuthIntegrationTest {
     void register_rejectsInvalidSrn() throws Exception {
         mockMvc.perform(post(REGISTER_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(registerJson("Student Three", "student.three@college.edu", VALID_PASSWORD, "INVALID-SRN")))
+                        .content(registerJson("Student Three", "student.three@kletech.ac.in", VALID_PASSWORD, "INVALID-SRN")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message", containsString("SRN")));
 
@@ -169,7 +169,7 @@ class AuthIntegrationTest {
     void register_rejectsShortPassword() throws Exception {
         mockMvc.perform(post(REGISTER_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(registerJson("Student Four", "student.four@college.edu", "short", "02FE24BCS144")))
+                        .content(registerJson("Student Four", "student.four@kletech.ac.in", "short", "02FE24BCS144")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.validationErrors.password").exists());
 
@@ -179,11 +179,11 @@ class AuthIntegrationTest {
     @Test
     @DisplayName("Registration rejects a duplicate email differing only in letter case")
     void register_rejectsDuplicateEmailIgnoringCase() throws Exception {
-        register("Student Five", "student.five@college.edu", VALID_PASSWORD, "02FE24BCS151");
+        register("Student Five", "student.five@kletech.ac.in", VALID_PASSWORD, "02FE24BCS151");
 
         mockMvc.perform(post(REGISTER_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(registerJson("Student Five", "STUDENT.FIVE@COLLEGE.EDU", VALID_PASSWORD, "02FE24BCS152")))
+                        .content(registerJson("Student Five", "STUDENT.FIVE@KLETECH.AC.IN", VALID_PASSWORD, "02FE24BCS152")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("An account with the provided details already exists"));
     }
@@ -191,11 +191,11 @@ class AuthIntegrationTest {
     @Test
     @DisplayName("Registration rejects a duplicate SRN after normalizing it to uppercase")
     void register_rejectsDuplicateSrn() throws Exception {
-        register("Student Six", "student.six@college.edu", VALID_PASSWORD, "02FE24BCS161");
+        register("Student Six", "student.six@kletech.ac.in", VALID_PASSWORD, "02FE24BCS161");
 
         mockMvc.perform(post(REGISTER_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(registerJson("Student Seven", "student.seven@college.edu", VALID_PASSWORD, "02fe24bcs161")))
+                        .content(registerJson("Student Seven", "student.seven@kletech.ac.in", VALID_PASSWORD, "02fe24bcs161")))
                 .andExpect(status().isConflict());
     }
 
@@ -205,7 +205,7 @@ class AuthIntegrationTest {
         String body = """
                 {
                   "fullName": "Student Eight",
-                  "email": "student.eight@college.edu",
+                  "email": "student.eight@kletech.ac.in",
                   "password": "%s",
                   "srn": "02FE24BCS181",
                   "phone": "9876543210",
@@ -230,14 +230,14 @@ class AuthIntegrationTest {
     @Test
     @DisplayName("Verification activates the account and marks the token as used")
     void verifyEmail_activatesAccountAndMarksTokenUsed() throws Exception {
-        register("Student Nine", "student.nine@college.edu", VALID_PASSWORD, "02FE24BCS191");
+        register("Student Nine", "student.nine@kletech.ac.in", VALID_PASSWORD, "02FE24BCS191");
         String token = latestVerificationToken();
 
         mockMvc.perform(get(VERIFY_URL).param("token", token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        User activated = userRepository.findByEmailIgnoreCase("student.nine@college.edu").orElseThrow();
+        User activated = userRepository.findByEmailIgnoreCase("student.nine@kletech.ac.in").orElseThrow();
         assertThat(activated.isActive()).isTrue();
         assertThat(tokenRepository.findAll().getFirst().getUsedAt()).isNotNull();
     }
@@ -265,7 +265,7 @@ class AuthIntegrationTest {
     @Test
     @DisplayName("Verification rejects a token that was already used")
     void verifyEmail_rejectsReusedToken() throws Exception {
-        register("Student Eleven", "student.eleven@college.edu", VALID_PASSWORD, "02FE24BCS211");
+        register("Student Eleven", "student.eleven@kletech.ac.in", VALID_PASSWORD, "02FE24BCS211");
         String token = latestVerificationToken();
 
         mockMvc.perform(get(VERIFY_URL).param("token", token)).andExpect(status().isOk());
@@ -289,11 +289,11 @@ class AuthIntegrationTest {
     @Test
     @DisplayName("Login rejects an unverified account only after the password is correct")
     void login_rejectsUnverifiedAccountAfterCorrectPassword() throws Exception {
-        register("Student Twelve", "student.twelve@college.edu", VALID_PASSWORD, "02FE24BCS221");
+        register("Student Twelve", "student.twelve@kletech.ac.in", VALID_PASSWORD, "02FE24BCS221");
 
         mockMvc.perform(post(LOGIN_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginJson("student.twelve@college.edu", VALID_PASSWORD)))
+                        .content(loginJson("student.twelve@kletech.ac.in", VALID_PASSWORD)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message", containsString("verify your email")));
     }
@@ -373,8 +373,8 @@ class AuthIntegrationTest {
     void protectedEndpoint_withTamperedTokenReturns401() throws Exception {
         User user = saveUser("tampered.student@college.edu", UserRole.STUDENT, true);
         String token = jwtService.generateAccessToken(user);
-        char replacement = token.charAt(token.length() - 1) == 'A' ? 'B' : 'A';
-        String tampered = token.substring(0, token.length() - 1) + replacement;
+        char replacement = token.charAt(token.length() - 5) == 'A' ? 'B' : 'A';
+        String tampered = token.substring(0, token.length() - 5) + replacement + token.substring(token.length() - 4);
 
         mockMvc.perform(get(ME_URL).header(HttpHeaders.AUTHORIZATION, bearer(tampered)))
                 .andExpect(status().isUnauthorized());
@@ -474,14 +474,14 @@ class AuthIntegrationTest {
         String password = "UniqueSecret987";
         MvcResult registration = mockMvc.perform(post(REGISTER_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(registerJson("Student Secret", "student.secret@college.edu", password, "02FE24BCS251")))
+                        .content(registerJson("Student Secret", "student.secret@kletech.ac.in", password, "02FE24BCS251")))
                 .andExpect(status().isCreated())
                 .andReturn();
         String rawToken = latestVerificationToken();
 
         MvcResult login = mockMvc.perform(post(LOGIN_URL)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(loginJson("student.secret@college.edu", password)))
+                        .content(loginJson("student.secret@kletech.ac.in", password)))
                 .andExpect(status().isUnauthorized())
                 .andReturn();
 

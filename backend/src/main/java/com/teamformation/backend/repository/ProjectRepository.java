@@ -1,5 +1,7 @@
 package com.teamformation.backend.repository;
 
+import com.teamformation.backend.dto.AdminProjectRow;
+import com.teamformation.backend.dto.AdminProjectStatusCount;
 import com.teamformation.backend.entity.Project;
 import com.teamformation.backend.entity.enums.ProjectStatus;
 import jakarta.persistence.LockModeType;
@@ -12,6 +14,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -21,6 +24,35 @@ import java.util.Optional;
  */
 @Repository
 public interface ProjectRepository extends JpaRepository<Project, Long> {
+
+    @Query(
+            value = """
+                    select new com.teamformation.backend.dto.AdminProjectRow(
+                        p.id, p.title, p.mentor.fullName, p.status,
+                        (select count(r.id) from ProjectRoster r where r.project = p),
+                        p.preferencesLockedAt, p.preferenceDeadline,
+                        (select j.jobStatus from FormationJob j
+                         where j.project = p and not exists (
+                             select j2.id from FormationJob j2
+                             where j2.project = p
+                               and (j2.createdAt > j.createdAt
+                                    or (j2.createdAt = j.createdAt and j2.id > j.id)))))
+                    from Project p
+                    where (:status is null or p.status = :status)
+                    """,
+            countQuery = """
+                    select count(p.id) from Project p
+                    where (:status is null or p.status = :status)
+                    """)
+    Page<AdminProjectRow> findAdminProjectRows(
+            @Param("status") ProjectStatus status,
+            Pageable pageable);
+
+    @Query("""
+            select new com.teamformation.backend.dto.AdminProjectStatusCount(p.status, count(p.id))
+            from Project p group by p.status
+            """)
+    List<AdminProjectStatusCount> countAdminProjectsByStatus();
 
     /**
      * Use case: a mentor pages through their own projects.
