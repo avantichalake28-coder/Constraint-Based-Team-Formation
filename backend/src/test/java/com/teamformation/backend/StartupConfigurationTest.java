@@ -39,7 +39,7 @@ class StartupConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasFailed();
                     assertThat(context.getStartupFailure())
-                            .hasRootCauseMessage("ALLOWED_EMAIL_DOMAIN must be a domain such as college.edu");
+                            .hasRootCauseMessage("ALLOWED_EMAIL_DOMAIN must be a valid domain such as example.edu");
                 });
     }
 
@@ -48,11 +48,11 @@ class StartupConfigurationTest {
     void validAllowedDomain_loads() {
         contextRunner
                 .withUserConfiguration(EmailDomainPolicy.class)
-                .withPropertyValues("ALLOWED_EMAIL_DOMAIN=@College.EDU")
+                .withPropertyValues("ALLOWED_EMAIL_DOMAIN=@KLETECH.AC.IN")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context.getBean(EmailDomainPolicy.class).getAllowedDomain())
-                            .isEqualTo("college.edu");
+                            .isEqualTo("kletech.ac.in");
                 });
     }
 

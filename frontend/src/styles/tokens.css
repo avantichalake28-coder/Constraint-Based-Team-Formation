@@ -1,0 +1,137 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --font-size-xs: 0.72rem;
+  --font-size-sm: 0.82rem;
+  --font-size-md: 0.94rem;
+  --font-size-lg: 1.15rem;
+  --font-size-xl: 1.55rem;
+  --font-size-2xl: 1.9rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 560;
+  --font-weight-semibold: 620;
+  --font-weight-bold: 720;
+  --line-height-body: 1.5;
+
+  --color-brand: #8650dc;
+  --color-brand-strong: #753ed4;
+  --color-brand-soft: #a16ff2;
+  --color-brand-tint: #f0e5ff;
+  --color-accent: #d7bcff;
+  --color-ink: #25184b;
+  --color-muted: #79738d;
+  --color-subtle: #a09aab;
+  --color-field-border: #e3deed;
+  --color-field-bg: rgb(255 255 255 / 28%);
+  --color-surface: #fbfaff;
+  --color-page: #eee7ff;
+  --color-card: #ffffff;
+  --color-danger: #c64055;
+  --color-danger-bg: #fff0f2;
+  --color-success: #24744d;
+  --color-success-bg: #eaf8f0;
+  --color-info-bg: #f0ebff;
+  --gradient-primary: linear-gradient(105deg, #8547d8 0%, #a16ff2 100%);
+  --gradient-page: radial-gradient(ellipse at 50% 46%, #f8f2ff 0%, #eee7ff 69%, #e5dcff 100%);
+  --shadow-card: 0 16px 38px rgb(75 44 131 / 18%);
+  --shadow-button: 0 7px 15px rgb(133 71 216 / 27%);
+  --shadow-brand: 0 5px 16px rgb(128 83 219 / 26%);
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --radius-sm: 0.625rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.125rem;
+  --radius-card: 1.5rem;
+  --duration-fast: 140ms;
+  --duration-normal: 220ms;
+  --card-max-width: 1440px;
+  --control-height: 48px;
+  --content-max-width: 440px;
+  --breakpoint-tablet: 900px;
+  --breakpoint-mobile: 680px;
+}
+
+:root[data-theme="aurora"][data-mode="dark"] {
+  color-scheme: dark;
+  --color-brand: #a47af3;
+  --color-brand-strong: #8548e6;
+  --color-brand-soft: #a16ff2;
+  --color-brand-tint: #261b49;
+  --color-accent: #c5a5ff;
+  --color-ink: #f1ebff;
+  --color-muted: #b7aecb;
+  --color-subtle: #827a98;
+  --color-field-border: #3a2a68;
+  --color-field-bg: rgb(34 25 61 / 64%);
+  --color-surface: #15132c;
+  --color-page: #0e1026;
+  --color-card: #14142e;
+  --color-danger: #ff9aab;
+  --color-danger-bg: #351c30;
+  --color-success: #91e0b0;
+  --color-success-bg: #183229;
+  --color-info-bg: #252044;
+  --gradient-primary: linear-gradient(105deg, #7331d0 0%, #9164eb 100%);
+  --gradient-page: radial-gradient(ellipse at 48% 45%, #171536 0%, #0e1026 72%, #0b0e20 100%);
+  --shadow-card: 0 18px 48px rgb(2 3 19 / 55%);
+  --shadow-button: 0 7px 18px rgb(93 40 170 / 38%);
+  --shadow-brand: 0 5px 16px rgb(130 83 219 / 35%);
+}
+
+:root[data-theme="glass-horizon"][data-mode="light"] {
+  --color-brand: #328d9f;
+  --color-brand-strong: #247c90;
+  --color-brand-soft: #69b8c2;
+  --color-brand-tint: #e1f4f4;
+  --color-accent: #b6e4e6;
+  --color-ink: #173c4b;
+  --color-muted: #677f87;
+  --color-subtle: #94a5aa;
+  --color-field-border: #d4e6e8;
+  --color-surface: #f7fcfc;
+  --color-page: #def0f2;
+  --color-card: #ffffff;
+  --color-danger: #b94255;
+  --color-danger-bg: #fff0f2;
+  --color-success: #24744d;
+  --color-success-bg: #eaf8f0;
+  --color-info-bg: #e6f4f5;
+  --gradient-primary: linear-gradient(105deg, #278da2 0%, #66bdc3 100%);
+  --gradient-page: radial-gradient(ellipse at 50% 46%, #f5ffff 0%, #e1f2f4 69%, #d2e8ec 100%);
+  --shadow-card: 0 16px 38px rgb(42 105 121 / 18%);
+  --shadow-button: 0 7px 15px rgb(44 145 161 / 26%);
+  --shadow-brand: 0 5px 16px rgb(45 144 157 / 24%);
+}
+
+:root[data-theme="glass-horizon"][data-mode="dark"] {
+  color-scheme: dark;
+  --color-brand: #7fd0d4;
+  --color-brand-strong: #399aaa;
+  --color-brand-soft: #70c4cb;
+  --color-brand-tint: #153542;
+  --color-accent: #a7e2e4;
+  --color-ink: #e5fbfc;
+  --color-muted: #a2c0c6;
+  --color-subtle: #708d94;
+  --color-field-border: #24515c;
+  --color-field-bg: rgb(21 51 60 / 66%);
+  --color-surface: #10232e;
+  --color-page: #0b1c25;
+  --color-card: #10232e;
+  --color-danger: #ff9aab;
+  --color-danger-bg: #351c30;
+  --color-success: #91e0b0;
+  --color-success-bg: #183229;
+  --color-info-bg: #183742;
+  --gradient-primary: linear-gradient(105deg, #267b91 0%, #4ba9b2 100%);
+  --gradient-page: radial-gradient(ellipse at 48% 45%, #13313c 0%, #0b1c25 72%, #091720 100%);
+  --shadow-card: 0 18px 48px rgb(2 16 22 / 58%);
+  --shadow-button: 0 7px 18px rgb(24 103 119 / 38%);
+  --shadow-brand: 0 5px 16px rgb(50 146 159 / 33%);
+}

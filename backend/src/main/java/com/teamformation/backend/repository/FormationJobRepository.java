@@ -1,5 +1,6 @@
 package com.teamformation.backend.repository;
 
+import com.teamformation.backend.dto.AdminFormationJobStatusCount;
 import com.teamformation.backend.entity.FormationJob;
 import com.teamformation.backend.entity.enums.JobStatus;
 import jakarta.persistence.LockModeType;
@@ -24,6 +25,12 @@ import java.util.Optional;
  */
 @Repository
 public interface FormationJobRepository extends JpaRepository<FormationJob, Long> {
+
+    @Query("""
+            select new com.teamformation.backend.dto.AdminFormationJobStatusCount(j.jobStatus, count(j.id))
+            from FormationJob j group by j.jobStatus
+            """)
+    List<AdminFormationJobStatusCount> countAdminFormationJobsByStatus();
 
     /**
      * Use case: a mentor pages through formation jobs of a project by status.

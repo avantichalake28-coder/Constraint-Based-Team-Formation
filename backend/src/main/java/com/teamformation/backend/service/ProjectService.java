@@ -48,10 +48,14 @@ public class ProjectService {
      * calls this method instead of duplicating the comparison.
      */
     public boolean arePreferencesLocked(Project project, Instant now) {
-        if (project.getPreferencesLockedAt() != null) {
+        return arePreferencesLocked(project.getPreferencesLockedAt(), project.getPreferenceDeadline(), now);
+    }
+
+    public boolean arePreferencesLocked(Instant preferencesLockedAt, Instant preferenceDeadline, Instant now) {
+        if (preferencesLockedAt != null) {
             return true;
         }
-        return project.getPreferenceDeadline() != null && !project.getPreferenceDeadline().isAfter(now);
+        return preferenceDeadline != null && !preferenceDeadline.isAfter(now);
     }
 
     public boolean arePreferencesLocked(Project project) {

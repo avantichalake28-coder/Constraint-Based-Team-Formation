@@ -1,0 +1,28 @@
+.student-avatar {
+  display: block;
+  flex: 0 0 auto;
+  max-width: 100%;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+.student-avatar--small {
+  width: 32px;
+  height: 32px;
+}
+
+.student-avatar--medium {
+  width: 48px;
+  height: 48px;
+}
+
+.student-avatar--large {
+  width: 72px;
+  height: 72px;
+}
+
+.student-avatar--selection {
+  height: 210px;
+  max-width: 100%;
+  width: auto;
+}
